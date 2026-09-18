@@ -32,29 +32,75 @@ namespace ojson
  
     class Json
     {       
-        public:        
+        public:
             enum class NodeType : std::uint8_t{kNull, kBoolean, kNumber, kString, kArray, kObject};
+
+            struct NodeProxy;
 
             Json();
 
             template<JsonType T>
             Json(T&&);
-                    
-            template<PrimitiveType T>
-            T& get();
 
+            NodeProxy get();
             Json& get(const int);
             Json& get(std::string_view);
-
-            NodeType get_current_type() const;
                    
+            NodeType get_current_type() const;                 
+
         private:            
             using Node = std::variant<std::monostate, bool, double, std::string, Array, Object>;
 
             Node node_;
             NodeType current_type_;
 
+            template<PrimitiveType T>
+            T& get();
+
             void ReloadCurrentType();
+    };
+
+    struct ojson::Json::NodeProxy
+    {
+        public:
+            NodeProxy(bool& boolean) : boolean(&boolean) {}
+            NodeProxy(double& number) : number(&number) {}
+            NodeProxy(std::string& str) : str(&str) {}
+
+            operator bool&()
+            {
+                if(boolean == nullptr) throw std::runtime_error("getting a wrong type");
+                return *boolean;
+            }
+            operator double&()
+            {
+                if(number == nullptr) throw std::runtime_error("getting a wrong type");
+                return *number;   
+            }                   
+            operator std::string&()
+            {
+                if(str == nullptr) throw std::runtime_error("getting a wrong type");
+                return *str;
+            }
+            template<typename T>
+            requires std::is_arithmetic_v<T> && (!std::same_as<std::decay_t<T>, bool>) && (!std::same_as<std::decay_t<T>, double>)
+            operator T()
+            {
+                if(number == nullptr) throw std::runtime_error("getting a wrong type");
+                return *number;          
+            }
+            template<typename T>
+            requires std::convertible_to<std::string, T> && (!std::same_as<std::decay_t<T>, std::string>)
+            operator T()
+            {
+                if(str == nullptr) throw std::runtime_error("getting a wrong type");
+                return *str;            
+            }
+            
+        private:
+            bool* boolean = nullptr;
+            double* number = nullptr;
+            std::string* str = nullptr;
     };
    
     inline Json::Json() {current_type_ = NodeType::kNull;}
@@ -66,10 +112,25 @@ namespace ojson
         ReloadCurrentType();
     }
 
+    inline Json::NodeProxy Json::get()
+    {
+        switch (current_type_)
+        {
+            case NodeType::kBoolean:
+                return NodeProxy(get<bool>());
+            case NodeType::kNumber:
+                return NodeProxy(get<double>());
+            case NodeType::kString:
+                return NodeProxy(get<std::string>());
+            default:
+                throw std::runtime_error("unknown type occurred");
+        }
+    }
+
     template<PrimitiveType T>
     T& Json::get()
     {
-       return std::get<T>(node_); 
+       return std::get<std::decay_t<T>>(node_);
     }
 
     inline Json& Json::get(const int index)
@@ -110,6 +171,9 @@ namespace ojson
                 break;
             case 5:
                 current_type_ = NodeType::kObject;
+                break;
+            default:
+                throw std::runtime_error("Unknown type occurred when reloading type.");
         }
     }
     
