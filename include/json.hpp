@@ -15,6 +15,10 @@
 namespace ojson
 {
     class Json;
+    using Null = std::monostate;
+    using Boolean = bool;
+    using Number = double;
+    using String = std::string;
     using Array = std::vector<Json>;
     using Object = std::map<std::string, Json, std::less<>>;
     
@@ -22,7 +26,7 @@ namespace ojson
     concept OneOf = (std::same_as<T, Ts> || ...);
 
     template<typename T>
-    concept PrimitiveType = (OneOf<std::decay_t<T>, std::monostate, bool, double, std::string>);
+    concept PrimitiveType = (OneOf<std::decay_t<T>, Null, Boolean, Number, String>);
 
     template<typename T>
     concept StructuredType = OneOf<std::decay_t<T>, Array, Object>;
@@ -46,10 +50,10 @@ namespace ojson
             Json& get(const int);
             Json& get(std::string_view);
                    
-            NodeType get_current_type() const;                 
+            NodeType get_current_type() const;
 
-        private:            
-            using Node = std::variant<std::monostate, bool, double, std::string, Array, Object>;
+        private:
+            using Node = std::variant<Null, Boolean, Number, String, Array, Object>;
 
             Node node_;
             NodeType current_type_;
@@ -63,9 +67,9 @@ namespace ojson
     struct ojson::Json::NodeProxy
     {
         public:
-            NodeProxy(bool& boolean) : boolean(&boolean) {}
-            NodeProxy(double& number) : number(&number) {}
-            NodeProxy(std::string& str) : str(&str) {}
+            NodeProxy(Boolean& boolean) : boolean(&boolean) {}
+            NodeProxy(Number& number) : number(&number) {}
+            NodeProxy(String& string) : string(&string) {}
 
             operator bool&()
             {
@@ -79,8 +83,8 @@ namespace ojson
             }                   
             operator std::string&()
             {
-                if(str == nullptr) throw std::runtime_error("getting a wrong type");
-                return *str;
+                if(string == nullptr) throw std::runtime_error("getting a wrong type");
+                return *string;
             }
             template<typename T>
             requires std::is_arithmetic_v<T> && (!std::same_as<std::decay_t<T>, bool>) && (!std::same_as<std::decay_t<T>, double>)
@@ -93,14 +97,14 @@ namespace ojson
             requires std::convertible_to<std::string, T> && (!std::same_as<std::decay_t<T>, std::string>)
             operator T()
             {
-                if(str == nullptr) throw std::runtime_error("getting a wrong type");
-                return *str;            
+                if(string == nullptr) throw std::runtime_error("getting a wrong type");
+                return *string;            
             }
             
         private:
-            bool* boolean = nullptr;
-            double* number = nullptr;
-            std::string* str = nullptr;
+            Boolean* boolean = nullptr;
+            Number* number = nullptr;
+            String* string = nullptr;
     };
    
     inline Json::Json() {current_type_ = NodeType::kNull;}
@@ -117,11 +121,11 @@ namespace ojson
         switch (current_type_)
         {
             case NodeType::kBoolean:
-                return NodeProxy(get<bool>());
+                return NodeProxy(get<Boolean>());
             case NodeType::kNumber:
-                return NodeProxy(get<double>());
+                return NodeProxy(get<Number>());
             case NodeType::kString:
-                return NodeProxy(get<std::string>());
+                return NodeProxy(get<String>());
             default:
                 throw std::runtime_error("unknown type occurred");
         }
