@@ -15,6 +15,8 @@
 namespace ojson
 {
     class Json;
+
+    // alias of Json basic type
     using Null = std::monostate;
     using Boolean = bool;
     using Number = double;
@@ -23,14 +25,11 @@ namespace ojson
     using Object = std::map<std::string, Json, std::less<>>;
     
     template<typename T, typename... Ts>
-    concept OneOf = (std::same_as<T, Ts> || ...);
-
+    concept OneOf = (std::same_as<T, Ts> || ...);  
     template<typename T>
-    concept PrimitiveType = (OneOf<std::decay_t<T>, Null, Boolean, Number, String>);
-
+    concept PrimitiveType = OneOf<std::remove_cvref_t<T>, Null, Boolean, Number, String>;
     template<typename T>
-    concept StructuredType = OneOf<std::decay_t<T>, Array, Object>;
-
+    concept StructuredType = OneOf<std::remove_cvref_t<T>, Array, Object>;
     template<typename T>
     concept JsonType = (PrimitiveType<T> || StructuredType<T>);
  
@@ -43,8 +42,14 @@ namespace ojson
             enum class NodeType : std::uint8_t{kNull, kBoolean, kNumber, kString, kArray, kObject};
 
             struct NodeProxy;
-
+            
+            // No parameter constructor
+            // The type of Json will be set to kNull
             Json();
+
+            // Constructor with limited types of parameter
+            // The basic type of parameter should be exactly same as Json basic type
+            // Reference and const parameter are allowed, no copy when parameter is right reference
             template<JsonType T>
             Json(T&&);
 
