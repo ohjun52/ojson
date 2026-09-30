@@ -34,6 +34,9 @@ namespace ojson
     template<typename T>
     concept JsonType = (PrimitiveType<T> || StructuredType<T>);
  
+    // JSON Date Class
+    // Store the data from parser or user into this class, and allow to use JSON generator.
+    // Provide different interface for get and modify.
     class Json
     {       
         public:
@@ -42,13 +45,16 @@ namespace ojson
             struct NodeProxy;
 
             Json();
-
             template<JsonType T>
             Json(T&&);
 
             NodeProxy get();
+            const NodeProxy get() const;
+
             Json& get(const int);
+            const Json& get(const int) const;
             Json& get(std::string_view);
+            const Json& get(std::string_view) const;
                    
             NodeType get_current_type() const;
 
@@ -60,6 +66,8 @@ namespace ojson
 
             template<PrimitiveType T>
             T& get();
+            template<PrimitiveType T>
+            const T& get() const;
 
             void ReloadCurrentType();
     };
@@ -80,7 +88,7 @@ namespace ojson
             {
                 if(number == nullptr) throw std::runtime_error("getting a wrong type");
                 return *number;   
-            }                   
+            }
             operator std::string&()
             {
                 if(string == nullptr) throw std::runtime_error("getting a wrong type");
@@ -137,6 +145,12 @@ namespace ojson
        return std::get<std::decay_t<T>>(node_);
     }
 
+    template<PrimitiveType T>
+    const T& Json::get() const
+    {
+       return std::get<std::decay_t<T>>(node_);
+    }
+
     inline Json& Json::get(const int index)
     {
         Array& t = std::get<Array>(node_);
@@ -145,9 +159,26 @@ namespace ojson
         throw std::out_of_range("Invalid access to array, index out of range.");
     }
 
+    inline const Json& Json::get(const int index) const
+    {
+        const Array& t = std::get<Array>(node_);
+        if(0 <= index && index < t.size())
+            return std::get<Array>(node_).at(index);
+        throw std::out_of_range("Invalid access to array, index out of range.");
+    }
+
     inline Json& Json::get(std::string_view key)
     {
         Object& t = std::get<Object>(node_);  
+        auto it = t.find(key);
+        if(it != t.end())
+            return it->second;
+        throw std::out_of_range("Invalid access to object, key not found.");
+    }
+
+    inline const Json& Json::get(std::string_view key) const
+    {
+        const Object& t = std::get<Object>(node_);  
         auto it = t.find(key);
         if(it != t.end())
             return it->second;
