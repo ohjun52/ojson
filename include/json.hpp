@@ -43,24 +43,23 @@ namespace ojson
 
             struct NodeProxy;
             
-            // No parameter constructor
-            // The type of Json will be set to kNull
+            // A no parameter constructor.
+            // The type of Json will be set to kNull.
             Json();
 
-            // Constructor with limited types of parameter
-            // The basic type of parameter should be exactly same as Json basic type
-            // Reference and const parameter are allowed, no copy when parameter is right reference
+            // A constructor with limited types of parameter.
+            // The basic type of parameter should be exactly same as Json basic type.
+            // Reference and const parameter are allowed, no copy when parameter is right reference.
             template<JsonType T>
             Json(T&&);
 
-            NodeProxy get();
-            const NodeProxy get() const;
+            NodeProxy get() const;
 
             Json& get(const int);
             const Json& get(const int) const;
             Json& get(std::string_view);
             const Json& get(std::string_view) const;
-                   
+
             NodeType get_current_type() const;
 
         private:
@@ -77,47 +76,37 @@ namespace ojson
             void ReloadCurrentType();
     };
 
+    // A node proxy between Json class and user.
+    // Can implicit convert Json basic type to support type, only return value.
+    // Support type: arithmetic types, types that std::string is convertable to.
     struct ojson::Json::NodeProxy
     {
         public:
-            NodeProxy(Boolean& boolean) : boolean(&boolean) {}
-            NodeProxy(Number& number) : number(&number) {}
-            NodeProxy(String& string) : string(&string) {}
+            NodeProxy(const Boolean& boolean) : boolean(&boolean) {}
+            NodeProxy(const Number& number) : number(&number) {}
+            NodeProxy(const String& string) : string(&string) {}
 
-            operator bool&()
+            template<typename T>
+            requires std::is_arithmetic_v<T>
+            operator T() const
             {
-                if(boolean == nullptr) throw std::runtime_error("getting a wrong type");
-                return *boolean;
+                if(boolean) return *boolean;
+                else if(number) return *number;
+                else throw std::runtime_error("getting a wrong type");
             }
-            operator double&()
+
+            template<typename T>
+            requires std::convertible_to<std::string, T>
+            operator T() const
             {
-                if(number == nullptr) throw std::runtime_error("getting a wrong type");
-                return *number;   
-            }
-            operator std::string&()
-            {
-                if(string == nullptr) throw std::runtime_error("getting a wrong type");
+                if(!string) throw std::runtime_error("getting a wrong type");
                 return *string;
-            }
-            template<typename T>
-            requires std::is_arithmetic_v<T> && (!std::same_as<std::decay_t<T>, bool>) && (!std::same_as<std::decay_t<T>, double>)
-            operator T()
-            {
-                if(number == nullptr) throw std::runtime_error("getting a wrong type");
-                return *number;          
-            }
-            template<typename T>
-            requires std::convertible_to<std::string, T> && (!std::same_as<std::decay_t<T>, std::string>)
-            operator T()
-            {
-                if(string == nullptr) throw std::runtime_error("getting a wrong type");
-                return *string;            
             }
             
         private:
-            Boolean* boolean = nullptr;
-            Number* number = nullptr;
-            String* string = nullptr;
+            const Boolean* boolean = nullptr;
+            const Number* number = nullptr;
+            const String* string = nullptr;
     };
    
     inline Json::Json() {current_type_ = NodeType::kNull;}
@@ -129,7 +118,7 @@ namespace ojson
         ReloadCurrentType();
     }
 
-    inline Json::NodeProxy Json::get()
+    inline Json::NodeProxy Json::get() const
     {
         switch (current_type_)
         {
